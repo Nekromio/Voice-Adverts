@@ -1,7 +1,7 @@
 # Voice-Adverts
 Voice Adverts
 
-
+# en
 A database connection is required
 
 Either SQLite or MySQL
@@ -28,7 +28,7 @@ for MySQL, enter the following item in the /addons/sourcemod/configs/databases.c
 	}
 
 
-
+# ru
 Необходимо подключение к базе данных
 
 Либо SqLite, либо MySQL
