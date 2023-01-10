@@ -35,7 +35,7 @@ public Plugin myinfo =
 	name = "[Any] Voice Adverts",
 	author = "Cep>|< ( rewritten Nek.'a 2x2 | ggwp.site )",
 	description = "Voice Adverts",
-	version = "1.0.2",
+	version = "1.0.3",
 	url = "http://www.sourcemod.net/ and https://ggwp.site/"
 };
 
@@ -321,7 +321,7 @@ public void SQL_Callback_SelectClient(Database hDatabaseLocal, DBResultSet hResu
 		{
 			sSqlInfo[0][client] = "1";
 			bEnableSound[client] = true;
-			sSqlInfo[1][client] = "100.0";
+			sSqlInfo[1][client] = "1.0";
 			fVol[client] = 1.0;
 			FormatEx(sQuery, sizeof(sQuery), "INSERT INTO `voiceadverts` (`steam_id`, `enable_sound`, `volume`) VALUES ('%s', '%s', '%s');", sSteam, sSqlInfo[0][client], sSqlInfo[1][client]);
 			hDatabase.Query(SQL_Callback_CreateClient, sQuery, GetClientUserId(client));
