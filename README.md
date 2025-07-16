@@ -6,14 +6,6 @@ A database connection is required
 
 Either SQLite or MySQL
 
-for SQLite, enter the following item in the /addons/sourcemod/configs/databases.cfg file
-
-	"voice advertising"
-	{
-		"driver" "sqlite"
-		"database" "voice ads"
-	}
-
 for MySQL, enter the following item in the /addons/sourcemod/configs/databases.cfg file
 
 	"voice advertising"
@@ -32,14 +24,6 @@ for MySQL, enter the following item in the /addons/sourcemod/configs/databases.c
 Необходимо подключение к базе данных
 
 Либо SqLite, либо MySQL
-
-для SqLite введите в файле /addons/sourcemod/configs/databases.cfg следующий пункт
-
-	"voiceadverts"
-	{
-		"driver"			"sqlite"
-		"database"			"voiceadverts"
-	}
 	
 для MySQL введите в файле /addons/sourcemod/configs/databases.cfg следующий пункт
 
