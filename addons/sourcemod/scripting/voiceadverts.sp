@@ -18,14 +18,50 @@ ConVar
 	cvAdvertTime,
 	cvMySQL;
 
-enum struct Data
+bool bDisable;
+
+char sTrackNow[512];
+
+enum struct settings
 {
+	int id;
 	bool enable;
 	float volume;
 	char steam[32];
+
+	void Init(int client)
+	{
+		this.id = client;
+		this.Reset();
+	}
+
+	void Reset()
+	{
+		if(!this.IsValidClient()) return;
+		this.enable = false;
+		this.volume = 1.0;
+		this.steam = "";
+	}
+
+	bool IsValidClient()
+	{
+		return 0 < this.id <= MaxClients && IsClientInGame(this.id);
+	}
+
+	int GetVolume()
+	{
+		return RoundToNearest(this.volume * 100.0);
+	}
+
+	void Save()
+	{
+		char sQuery[512];
+		FormatEx(sQuery, sizeof(sQuery), "UPDATE `voice_adverts` SET `volume` = '%.1f', `enable` = '%d' WHERE `steam_id` = '%s';", this.volume, this.enable, this.steam);
+		hDatabase.Query(SQL_Callback_Save, sQuery);
+	}
 }
 
-Data Voice[MAXPLAYERS+1];
+settings player[MAXPLAYERS+1];
 
 #include "voice_adverts/db.sp"
 #include "voice_adverts/menu.sp"
@@ -35,27 +71,50 @@ public Plugin myinfo =
 	name = "[Any] Voice Adverts",
 	author = "Nek.'a 2x2 | ggwp.site ",
 	description = "Voice Adverts",
-	version = "1.0.4",
+	version = "1.0.5",
 	url = "https://ggwp.site/"
 };
 
 public void OnPluginStart()
 {
 	ReloadClients();
-	hArray = new ArrayList(ByteCountToCells(256));
+	hArray = new ArrayList(ByteCountToCells(512));
 	
 	cvEnable = CreateConVar("sm_voiceadverts", "1", "Включить/Выключить плагин");
 	cvAdvertTime = CreateConVar("sm_voiceadverts_time", "180", "С какой переодичностью (в секундах) будут проигрываться треки");
 	cvMySQL = CreateConVar("sm_voiceadverts_mysql", "0", "Хранение данных удалённо - 1; Хранение данных на сервере - 0");
 
+	HookConVarChange(cvAdvertTime, OnConVarChanged);
+
 	AutoExecConfig(true, "voice_adverts");
+
+	HookEvent("player_disconnect", Event_Disconnect, EventHookMode_Pre);
+	HookEvent("round_end", Event_RoundEnd, EventHookMode_Pre);
+	HookEvent("round_start", Event_RoundStart, EventHookMode_Post);
+
+	for(int i = 1; i <= MaxClients; i++) if(IsClientInGame(i)) player[i].Init(i);
 
 	LoadAdvSounds();
 
-	RegConsoleCmd("sm_vr", CmdVoiceMenu);
+	RegConsoleCmd("sm_vr", Cmd_VoiceMenu);
+}
+
+public void OnConVarChanged(ConVar convar, const char[] oldValue, const char[] newValue)
+{
+	if (convar != cvAdvertTime)
+		return;
+
+	if(hAdvertTimer) delete hAdvertTimer;
+	if (cvAdvertTime.FloatValue > 0.0)
+		hAdvertTimer = CreateTimer(cvAdvertTime.FloatValue, Timer_PlayVoiceAdv, TIMER_FLAG_NO_MAPCHANGE);
 }
 
 public void OnMapStart()
+{
+	LoadAdvSounds();
+}
+
+public void OnConfigsExecuted()
 {
 	if(!cvEnable.BoolValue)
 		return;
@@ -68,121 +127,154 @@ public void OnMapStart()
 	{
 		Custom_SQLite();
 	}
-	
-	LoadAdvSounds();
-	hAdvertTimer = CreateTimer(cvAdvertTime.FloatValue, PlayVoiceAdv);
+
+	bDisable = false;
+
+	hAdvertTimer = CreateTimer(cvAdvertTime.FloatValue, Timer_PlayVoiceAdv, _, TIMER_REPEAT | TIMER_FLAG_NO_MAPCHANGE);
 }
 
-public void OnClientDisconnect(int client)
+public void Event_Disconnect(Event hEvent, const char[] name, bool dontBroadcast)
 {
-	DataPack hPack = new DataPack();
-	hPack.WriteCell(view_as<int>(Voice[client].enable));
-	hPack.WriteFloat(Voice[client].volume);
-	hPack.WriteString(Voice[client].steam);
-	SaveSettings(hPack);
+	int client = GetClientOfUserId(hEvent.GetInt("userid"));
+	player[client].Save();
+	player[client].Reset();
 }
 
 void ReloadClients()
 {
 	for(int i = 1; i <= MaxClients; i++) if(IsClientInGame(i) && !IsFakeClient(i))
 	{
-		Voice[i].enable = true;
-		Voice[i].volume = 1.0;
+		player[i].enable = true;
+		player[i].volume = 1.0;
 	}
 }
 
-Action CmdVoiceMenu(int client, any argc)
+Action Cmd_VoiceMenu(int client, any argc)
 {
-	if(!IsValideClient(client))
+	if(!player[client].IsValidClient())
 		return Plugin_Continue;
 	
-	CreatMenu_Base(client);
+	MenuBase(client);
 
 	return Plugin_Handled; 
 }
 
-int GetVolume(int client)
-{
-	switch(Voice[client].volume)
-	{
-		case 1.0: return 100;
-		case 0.8: return 80;
-		case 0.6: return 60;
-		case 0.4: return 40;
-		case 0.2: return 20;
-		case 0.0: return 0;
-	}
-	return 0;
-}
-
 public void OnClientPostAdminCheck(int client)
 {
-	if(!IsValideClient(client))
+	if(IsFakeClient(client))
 		return;
 
-	char sQuery[512];
-	GetClientAuthId(client, AuthId_Steam2, Voice[client].steam, sizeof(Data::steam));
+	player[client].Init(client);
 
-	FormatEx(sQuery, sizeof(sQuery), "SELECT `enable`, `volume` FROM `voice_adverts` WHERE `steam_id` = '%s';", Voice[client].steam);
+	char sQuery[512];
+	GetClientAuthId(client, AuthId_Steam2, player[client].steam, sizeof(settings::steam));
+
+	FormatEx(sQuery, sizeof(sQuery), "SELECT `enable`, `volume` FROM `voice_adverts` WHERE `steam_id` = '%s';", player[client].steam);
 	hDatabase.Query(SQL_Callback_SelectClient, sQuery, GetClientUserId(client));
 }
 
 void LoadAdvSounds()
 {
 	hArray.Clear();
-	char sConfigFile[PLATFORM_MAX_PATH];
-	BuildPath(Path_SM, sConfigFile, sizeof(sConfigFile), "configs/voice_adverts.ini");
-	
-	if(!FileExists(sConfigFile))
-		LogMessage("Файл voice_adverts.ini не найден !");
-	else
-	{
-		Handle hFile = OpenFile(sConfigFile, "r");
-		char sBuffer[2][256];
-		while(!IsEndOfFile(hFile))
-		{
-			ReadFileLine(hFile, sBuffer[0], sizeof(sBuffer[]));
-			TrimString(sBuffer[0]);
-			
-			if(sBuffer[0][0] == '/' || sBuffer[0][0] == '\0')
-				continue;
 
-			hArray.PushString(sBuffer[0]);
-			
-			Format(sBuffer[1], sizeof(sBuffer[]), "sound/%s", sBuffer[0]);
-			AddFileToDownloadsTable(sBuffer[1]);
-			if(sBuffer[0][0]) PrecacheSound(sBuffer[0], true);
- 		}
-		CloseHandle(hFile);
+	char path[PLATFORM_MAX_PATH];
+	BuildPath(Path_SM, path, sizeof(path), "configs/voice_adverts.ini");
+
+	if (!FileExists(path))
+	{
+		ThrowError("Файл voice_adverts.ini не найден!");
+		return;
 	}
+
+	File file = OpenFile(path, "r");
+	if (file == null)
+	{
+		LogError("Ошибка при открытии файла voice_adverts.ini");
+		return;
+	}
+
+	char line[512];
+	int count = 0;
+
+	while (ReadFileLine(file, line, sizeof(line)))
+	{
+		TrimString(line);
+
+		if (line[0] == '/' || line[0] == '\0')
+			continue;
+
+		HandleSoundLine(line);
+		count++;
+	}
+
+	delete file;
 }
 
-Action PlayVoiceAdv(Handle timer)
+void HandleSoundLine(const char[] line)
 {
-	if(!cvEnable.BoolValue)
+	hArray.PushString(line);
+
+	char path[512];
+	Format(path, sizeof(path), "sound/%s", line);
+	AddFileToDownloadsTable(path);
+
+	PrecacheSound(line, true);
+}
+
+Action Timer_PlayVoiceAdv(Handle timer)
+{
+	if(!cvEnable.BoolValue || !hArray.Length)
 		return Plugin_Continue;
-		
-	hAdvertTimer = CreateTimer(cvAdvertTime.FloatValue, PlayVoiceAdv);
 
-	int iRnd = GetRandomInt(0, GetArraySize(hArray) - 1);
-	char sSoundList[256];
-	GetArrayString(hArray, iRnd, sSoundList, sizeof(sSoundList));
-
-	for(int i = 1; i <= MaxClients; i++) if(IsClientInGame(i) && !IsFakeClient(i) && Voice[i].enable == true)
+	if(bDisable)
 	{
-		EmitSoundToClient(i, sSoundList, SOUND_FROM_PLAYER, SNDCHAN_AUTO, SNDLEVEL_NORMAL, SND_NOFLAGS, Voice[i].volume);
+		StopAllVoiceAdverts();
+		return Plugin_Continue;
 	}
+
+	char sound[512];
+	GetRandomAdvert(sound, sizeof(sound));
+	strcopy(sTrackNow, sizeof(sTrackNow), sound);
+	PlayAdvertToAll(sound);
 
 	return Plugin_Continue;
 }
 
-public void OnMapEnd()
+void GetRandomAdvert(char[] buffer, int size)
 {
-	hArray.Clear();
-	delete hAdvertTimer;
+	int index = GetRandomInt(0, hArray.Length - 1);
+	hArray.GetString(index, buffer, size);
 }
 
-bool IsValideClient(int client)
+void PlayAdvertToAll(const char[] sound)
 {
-	return 0 < client <= MaxClients && IsClientInGame(client) && !IsFakeClient(client);
+	for (int i = 1; i <= MaxClients; i++)
+	{
+		if (IsClientInGame(i) && !IsFakeClient(i) && player[i].enable)
+		{
+			EmitSoundToClient(i, sound, SOUND_FROM_PLAYER, SNDCHAN_AUTO, SNDLEVEL_NORMAL, SND_NOFLAGS, player[i].volume);
+		}
+	}
+}
+
+public void Event_RoundEnd(Event hEvent, const char[] name, bool dontBroadcast)
+{
+	bDisable = true;
+	StopAllVoiceAdverts();
+}
+
+public void Event_RoundStart(Event hEvent, const char[] name, bool dontBroadcast)
+{
+	bDisable = false;
+}
+
+void StopAllVoiceAdverts()
+{
+	if(!sTrackNow[0])
+		return;
+	for (int i = 1; i <= MaxClients; i++) if(IsClientInGame(i) && !IsFakeClient(i))
+	{
+		StopSound(i, SNDCHAN_AUTO, sTrackNow);
+	}
+	sTrackNow = "";
 }

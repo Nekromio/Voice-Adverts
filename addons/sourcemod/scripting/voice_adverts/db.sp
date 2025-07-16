@@ -92,12 +92,17 @@ public void SQL_Callback_SelectClient(Database hDatabaseLocal, DBResultSet hResu
 
 		if(hResults.FetchRow())
 		{
-			Voice[client].enable = view_as<bool>(hResults.FetchInt(0));
-			Voice[client].volume = hResults.FetchFloat(1);
+			player[client].enable = view_as<bool>(hResults.FetchInt(0));
+			player[client].volume = hResults.FetchFloat(1);
 		}
 		else
 		{
-			FormatEx(sQuery, sizeof(sQuery), "INSERT INTO `voice_adverts` (`enable`, `steam_id`, `volume`) VALUES ('%d', '%s', '%.1f');", Voice[client].enable = true, Voice[client].steam, Voice[client].volume = 1.0);
+			player[client].enable = true;
+			player[client].volume = 1.0;
+
+			FormatEx(sQuery, sizeof(sQuery),
+				"INSERT INTO `voice_adverts` (`enable`, `steam_id`, `volume`) VALUES ('%d', '%s', '%.1f');",
+				player[client].enable, player[client].steam, player[client].volume);
 			hDatabase.Query(SQL_Callback_CreateClient, sQuery, GetClientUserId(client));
 		}
 	}
@@ -112,26 +117,11 @@ public void SQL_Callback_CreateClient(Database hDatabaseLocal, DBResultSet resul
 	}
 }
 
-void SaveSettings(DataPack hPack)
-{
-	hPack.Reset();
-	bool enable = view_as<bool>(hPack.ReadCell());
-	float volume = hPack.ReadFloat();
-
-	char steam[32];
-	hPack.ReadString(steam, sizeof(steam));
-	delete hPack;
-
-	char sQuery[512];
-	FormatEx(sQuery, sizeof(sQuery), "UPDATE `voice_adverts` SET `volume` = '%.1f', `enable` = '%d' WHERE `steam_id` = '%s';", volume, enable, steam);
-	hDatabase.Query(SQL_Callback_SaveSettings, sQuery);
-}
-
-public void SQL_Callback_SaveSettings(Database hDatabaseLocal, DBResultSet results, const char[] szError, any data)
+public void SQL_Callback_Save(Database hDatabaseLocal, DBResultSet results, const char[] szError, any data)
 {
 	if(szError[0])
 	{
-		LogError("SQL_Callback_SaveSettings: %s", szError);
+		LogError("SQL_Callback_Save: %s", szError);
 	}
 }
 

@@ -1,23 +1,20 @@
-void CreatMenu_Base(int client)
+void MenuBase(int client)
 {
-	Menu hMenu = new Menu(ShowMenu_Base);
+	Menu hMenu = new Menu(ShowMenu_Callback);
 	hMenu.SetTitle("Меню голосовой рекламы");
 	
 	char sBuffer[256];
-	FormatEx(sBuffer, sizeof(sBuffer), "Включить звук [%s]", Voice[client].enable ? "√" : "×");
+	Format(sBuffer, sizeof(sBuffer), "Включить звук [%s]", player[client].enable ? "√" : "×");
 	hMenu.AddItem("item1", sBuffer);
 
-	Format(sBuffer, sizeof(sBuffer), "Изменить громкость [%d♫]", GetVolume(client));
+	Format(sBuffer, sizeof(sBuffer), "Изменить громкость [%d♫]", player[client].GetVolume());
 	hMenu.AddItem("item2", sBuffer);
 
 	hMenu.Display(client, 40);
 }
 
-int ShowMenu_Base(Menu hMenu, MenuAction action, int client, int iItem)
+int ShowMenu_Callback(Menu hMenu, MenuAction action, int client, int iItem)
 {
-	if(!IsValideClient(client))
-		return 0;
-
 	switch(action)
     {
 		case MenuAction_End:
@@ -30,16 +27,8 @@ int ShowMenu_Base(Menu hMenu, MenuAction action, int client, int iItem)
     		{
 				case 0:
 				{
-					if(Voice[client].enable == true)
-					{
-						Voice[client].enable = false;
-						CreatMenu_Base(client);
-					}
-					else
-					{
-						Voice[client].enable = true;
-						CreatMenu_Base(client);
-					}
+					player[client].enable = !player[client].enable;
+					MenuBase(client);
 				}
 				case 1:
 				{
@@ -53,66 +42,43 @@ int ShowMenu_Base(Menu hMenu, MenuAction action, int client, int iItem)
 
 void CreatMenu_Valume(int client)
 {
-	Menu hMenu = new Menu(ShowMenu_Valume);
+	Menu hMenu = new Menu(MenuValume_Callback);
 	hMenu.SetTitle("Меню громкости рекламы");
-	
-	hMenu.AddItem("item1", "Громкость 100 [♫]");
-	hMenu.AddItem("item2", "Громкость 80 [♫]");
-	hMenu.AddItem("item3", "Громкость 60 [♫]");
-	hMenu.AddItem("item4", "Громкость 40 [♫]");
-	hMenu.AddItem("item5", "Громкость 20 [♫]");
-	hMenu.AddItem("item6", "Громкость 0 [♫]");
+
+	for (int i = 0; i <= 5; i++)
+	{
+		char text[64];
+		int volume = 100 - (i * 20);
+		Format(text, sizeof(text), "Громкость %d [♫]", volume);
+		hMenu.AddItem("", text);
+	}
+
+	hMenu.ExitBackButton = true;
 
 	hMenu.Display(client, 25);
 }
 
-int ShowMenu_Valume(Menu hMenu, MenuAction action, int client, int item)
+int MenuValume_Callback(Menu hMenu, MenuAction action, int client, int item)
 {
-	if(!IsValideClient(client))
-		return 0;
-
-	switch(action)
-    {
+	switch (action)
+	{
 		case MenuAction_End:
-        {
-            delete hMenu;
-        }
+		{
+			delete hMenu;
+		}
 		case MenuAction_Select:
 		{
-			switch(item)
-    		{
-				case 0:
-				{
-					Voice[client].volume = 1.0;
-					CreatMenu_Base(client);
-				}
-				case 1:
-				{
-					Voice[client].volume = 0.8;
-					CreatMenu_Base(client);
-				}
-				case 2:
-				{
-					Voice[client].volume = 0.6;
-					CreatMenu_Base(client);
-				}
-				case 3:
-				{
-					Voice[client].volume = 0.4;
-					CreatMenu_Base(client);
-				}
-				case 4:
-				{
-					Voice[client].volume = 0.2;
-					CreatMenu_Base(client);
-				}
-				case 5:
-				{
-					Voice[client].volume = 0.0;
-					CreatMenu_Base(client);
-				}
-			}
+			float volume = 1.0 - (0.2 * item);
+			player[client].volume = volume;
+			MenuBase(client);
 		}
+		case MenuAction_Cancel:
+		{
+			if(item == MenuCancel_ExitBack)
+			{
+            	MenuBase(client);
+        	}
+   		}
 	}
 	return 0;
 }
