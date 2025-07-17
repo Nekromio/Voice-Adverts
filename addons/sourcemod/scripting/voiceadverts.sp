@@ -37,15 +37,10 @@ enum struct settings
 
 	void Reset()
 	{
-		if(!this.IsValidClient()) return;
-		this.enable = false;
+		if(!IsValidClient(this.id)) return;
+		this.enable = true;
 		this.volume = 1.0;
 		this.steam = "";
-	}
-
-	bool IsValidClient()
-	{
-		return 0 < this.id <= MaxClients && IsClientInGame(this.id);
 	}
 
 	int GetVolume()
@@ -71,7 +66,7 @@ public Plugin myinfo =
 	name = "[Any] Voice Adverts",
 	author = "Nek.'a 2x2 | ggwp.site ",
 	description = "Voice Adverts",
-	version = "1.0.5",
+	version = "1.0.6",
 	url = "https://ggwp.site/"
 };
 
@@ -151,7 +146,7 @@ void ReloadClients()
 
 Action Cmd_VoiceMenu(int client, any argc)
 {
-	if(!player[client].IsValidClient())
+	if(!IsValidClient(client))
 		return Plugin_Continue;
 	
 	MenuBase(client);
@@ -277,4 +272,9 @@ void StopAllVoiceAdverts()
 		StopSound(i, SNDCHAN_AUTO, sTrackNow);
 	}
 	sTrackNow = "";
+}
+
+bool IsValidClient(int client)
+{
+    return 0 < client <= MaxClients && IsClientInGame(client);
 }
